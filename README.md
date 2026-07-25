@@ -1,1 +1,1 @@
-# Protoshere
+# Protosphere - The Workshop guide
