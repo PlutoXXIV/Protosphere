@@ -1,0 +1,89 @@
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+
+const int sdaPin = 21;
+const int sclPin = 22;
+const int LCD_COLS = 16;
+const int LCD_ROWS = 2;
+
+LiquidCrystal_I2C *lcd = nullptr;
+
+//You can put your own messages in LCD by referring to the instructions provided at line 78!
+uint8_t findLCD() {
+  for (uint8_t addr = 0x20; addr <= 0x27; addr++) {
+    Wire.beginTransmission(addr);
+    if (Wire.endTransmission() == 0) return addr;
+  }
+  for (uint8_t addr = 0x38; addr <= 0x3F; addr++) {
+    Wire.beginTransmission(addr);
+    if (Wire.endTransmission() == 0) return addr;
+  }
+  return 0;
+}
+
+//Logic for marquee
+void lcdPrintLine(int row, const String &text, int scrollDelay = 300) {
+  if (text.length() <= LCD_COLS) {
+    lcd->setCursor(0, row);
+    lcd->print(text);
+    for (int i = text.length(); i < LCD_COLS; i++) lcd->print(' '); // clear rest of row
+    return;
+  }
+
+  // Padding.
+  String padded = text + "   ";
+  int totalLen = padded.length();
+
+  for (int pos = 0; pos <= totalLen; pos++) {
+    String window = "";
+    for (int i = 0; i < LCD_COLS; i++) {
+      window += padded[(pos + i) % totalLen];
+    }
+    lcd->setCursor(0, row);
+    lcd->print(window);
+    delay(scrollDelay);
+  }
+}
+
+void setup() {
+  Serial.begin(115200);
+  Wire.begin(sdaPin, sclPin);
+
+  uint8_t address = findLCD();
+  if (address == 0) {
+    Serial.println("No I2C LCD found");
+    return;
+  }
+
+  Serial.print("LCD found at 0x");
+  Serial.println(address, HEX);
+
+  lcd = new LiquidCrystal_I2C(address, LCD_COLS, LCD_ROWS);
+  lcd->init();
+  lcd->backlight();
+
+  lcd->setCursor(1, 0);
+  lcd->print("PROTOSPHERE");
+  lcd->setCursor(0, 1);
+  lcd->print("ESP32 + I2C");
+
+  Serial.println("LCD initialized");
+}
+
+void loop() {
+  if (lcd == nullptr) {
+    delay(1000);
+    return;
+  }
+//Line 78: Inside the lcdPrintLine command , 0 is for 1st row and 1 is for 2nd row. Put your desired message inside double quotes. 
+  delay(2000);
+  lcd->clear();
+  lcdPrintLine(1, "This is example of msg longer than 16 char 1 2 3 4 5 6 7 8 9 0");
+  Serial.println("This is example of msg longer than 16 char");
+//You can do the same change below, this message will be dsiplayed after the previou one. Both messages will cycle. 
+  delay(2000);
+  lcd->clear();
+  lcdPrintLine(0, "I2C LCD");
+  lcdPrintLine(1, "16x2 Display");
+  Serial.println("I2C LCD - 16x2 Display");
+}
