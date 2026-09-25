@@ -54,13 +54,16 @@ class QuizServer:
             try:
                 msg = json.loads(raw)
             except json.JSONDecodeError:
+                print(f"[raw] {raw}")
                 continue
 
             if "node" in msg and "answer" in msg:
                 with self.lock:
                     if msg.get("qid") == self.current_qid:
                         self.answers[msg["node"]] = msg["answer"]
-            elif "status" in msg or "error" in msg:
+                    else:
+                        print(f"[stale answer, ignored] {raw}")
+            elif "status" in msg or "error" in msg or "debug" in msg:
                 print(f"[gateway] {raw}")
 
     def ask(self, qid, text, window=None):
@@ -68,6 +71,14 @@ class QuizServer:
         with self.lock:
             self.current_qid = qid
             self.answers = {}
+
+        # ESP-NOW's hard cap is 250 bytes per packet; leave headroom for the
+        # {"qid":..,"text":"","window":..} wrapper (~25 bytes).
+        max_text_bytes = 250 - 30
+        text_bytes = text.encode()
+        if len(text_bytes) > max_text_bytes:
+            text = text_bytes[:max_text_bytes].decode(errors="ignore")
+            print(f"[warning] question truncated to fit ESP-NOW's packet size limit")
 
         payload = {"qid": qid, "text": text, "window": window}
         self.ser.write((json.dumps(payload) + "\n").encode())
@@ -97,8 +108,26 @@ class QuizServer:
 
 
 def load_questions(path):
+    """Each line is either just question text, or "question text::seconds"
+    to override the answer window for that one question, e.g.:
+        Is the sky blue?
+        Is 7 a prime number?::15
+    """
+    questions = []
     with open(path, encoding="utf-8") as f:
-        return [line.strip() for line in f if line.strip()]
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            if "::" in line:
+                text, window_str = line.rsplit("::", 1)
+                try:
+                    questions.append((text.strip(), int(window_str.strip())))
+                    continue
+                except ValueError:
+                    pass  # not a valid number after "::", treat whole line as text
+            questions.append((line, None))
+    return questions
 
 
 def main():
@@ -117,18 +146,27 @@ def main():
 
     try:
         if questions:
-            for q in questions:
+            for q_text, q_window in questions:
                 qid += 1
-                server.ask(qid, q)
+                server.ask(qid, q_text, window=q_window)
                 input("Press Enter for the next question...")
         else:
-            print("Type a question and press Enter to broadcast it. Ctrl+C to quit.")
+            print("Type a question and press Enter to broadcast it.")
+            print('Add "::seconds" to override the answer window, e.g. "2+2=4?::15". Ctrl+C to quit.')
             while True:
-                text = input("\nQuestion: ").strip()
-                if not text:
+                raw = input("\nQuestion: ").strip()
+                if not raw:
                     continue
+                window = None
+                if "::" in raw:
+                    text, window_str = raw.rsplit("::", 1)
+                    try:
+                        window = int(window_str.strip())
+                        raw = text.strip()
+                    except ValueError:
+                        pass
                 qid += 1
-                server.ask(qid, text)
+                server.ask(qid, raw, window=window)
     except KeyboardInterrupt:
         print("\nQuiz ended.")
     finally:

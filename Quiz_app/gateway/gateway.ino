@@ -34,7 +34,11 @@ void onDataRecv(const esp_now_recv_info_t *info, const uint8_t *data, int len) {
   Serial.write('\n');
 }
 
-void onDataSent(const uint8_t *mac, esp_now_send_status_t status) {
+// Newer ESP32 Arduino cores (IDF 5.x) pass a wifi_tx_info_t* here instead of
+// a raw MAC pointer. If you're on an older core (IDF 4.x) and this fails to
+// compile the other way, change the first parameter back to
+// "const uint8_t *mac".
+void onDataSent(const wifi_tx_info_t *tx_info, esp_now_send_status_t status) {
   // Uncomment for debugging broadcast delivery:
   // Serial.print("{\"send_status\":\""); Serial.print(status == ESP_NOW_SEND_SUCCESS ? "ok" : "fail"); Serial.println("\"}");
 }
@@ -74,6 +78,9 @@ void loop() {
     line.trim();
     if (line.length() > 0 && line.length() <= 240) {
       esp_now_send(BROADCAST_ADDR, (const uint8_t *)line.c_str(), line.length());
+      Serial.print("{\"debug\":\"broadcast sent\",\"echo\":");
+      Serial.print(line);
+      Serial.println("}");
     }
   }
 }
