@@ -1,11 +1,7 @@
 #include <WiFi.h>
-#include <esp_wifi.h>
 #include <esp_now.h>
 
-// Custom valid MAC Address
-const uint8_t customMAC[] = {0x02, 0x00, 0x00, 0x00, 0x00, 0x01};
-
-// 1. Callback function triggered automatically when data arrives
+// Callback function triggered automatically when data arrives
 void OnDataRecv(const esp_now_recv_info *info, const uint8_t *incomingData, int len) {
   Serial.print("Received message: ");
   Serial.write(incomingData, len); // Print raw bytes directly as text
@@ -14,29 +10,27 @@ void OnDataRecv(const esp_now_recv_info *info, const uint8_t *incomingData, int 
 
 void setup() {
   Serial.begin(115200);
-  
-  // 1. Initialize Wi-Fi
-  WiFi.mode(WIFI_STA);
-  delay(100);
-
-  // 2. Override the MAC address
-  esp_err_t result = esp_wifi_set_mac(WIFI_IF_STA, customMAC);
   delay(1000);
+  
+  // Initialize Wi-Fi in Station Mode (Required for ESP-NOW)
+  WiFi.mode(WIFI_STA);
 
-  if (result == ESP_OK) {
-    Serial.println("Custom MAC successfully set!");
-  } else {
-    Serial.println("Error setting MAC! Check invalid byte rules.");
-  }
-
-  // 3. Verify the new MAC
-  Serial.print("Current MAC Address: ");
+  // Verify and print the factory MAC address
+  Serial.print("Receiver Active MAC Address: ");
   Serial.println(WiFi.macAddress());
 
-  esp_now_init();      // Start ESP-NOW
-  delay(1000);
-  esp_now_register_recv_cb(OnDataRecv);
+  // Initialize ESP-NOW
+  if (esp_now_init() == ESP_OK) {
+    Serial.println("ESP-NOW initialized successfully.");
+  } else {
+    Serial.println("Error initializing ESP-NOW!");
+    return;
+  }
   
+  // Register the data reception callback function
+  esp_now_register_recv_cb(OnDataRecv);
 }
 
-void loop() {}
+void loop() {
+  // Left empty; callbacks handle data reception asynchronously in the background
+}

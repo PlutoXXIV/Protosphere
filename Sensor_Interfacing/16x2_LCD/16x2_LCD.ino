@@ -2,7 +2,7 @@
 
 const int sdaPin = 21;
 const int sclPin = 22;
-
+const char message[] = "embedded and iot";
 uint8_t lcdAddress = 0;
 
 const uint8_t LCD_BACKLIGHT = 0x08;
@@ -127,7 +127,8 @@ void loop() {
   delay(2);
 
   lcdSetCursor(0, 0);
-  lcdPrint("Embedded");
+  lcdPrint(message);
+  lcd.autoscroll();
 
   lcdSetCursor(0, 1);
   lcdPrint("Systems & IoT");
